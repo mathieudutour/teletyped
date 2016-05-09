@@ -1,0 +1,28 @@
+{
+  "name": "teletyped",
+  "version": "0.1.0",
+  "description": "",
+  "main": "build/index.js",
+  "scripts": {
+    "test": "make test",
+    "prepublish": "make clean build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mathieudutour/teletyped.git"
+  },
+  "author": "Mathieu Dutour <mathieu@dutour.me> (http://mathieu.dutour.me/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mathieudutour/teletyped/issues"
+  },
+  "homepage": "https://github.com/mathieudutour/teletyped#readme",
+  "devDependencies": {
+    "@mathieudutour/js-fatigue": "1.0.5"
+  },
+  "dependencies": {
+    "autobind-decorator": "1.3.3",
+    "lodash.shuffle": "4.0.0",
+    "matches-selector": "1.0.0"
+  }
+}
