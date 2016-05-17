@@ -4,36 +4,28 @@ import autobind from 'autobind-decorator'
 
 const DEFAULTS = {
   stringsElement: null,
-  // typing speed
-  typeSpeed: 0,
-  // time before typing starts
-  startDelay: 0,
-  // backspacing speed
-  backSpeed: 0,
-  // shuffle the strings
-  shuffle: false,
-  // time before backspacing
-  backDelay: 500,
-  // loop
-  loop: false,
-  // false = infinite
-  loopCount: false,
-  // show cursor
-  showCursor: true,
-  // character for cursor
-  cursorChar: '|',
-  // attribute to type (null == text)
-  attr: null,
-  // either html or text
-  contentType: 'html',
-  // call when done callback function
-  callback () {},
-  // starting callback function before each string
-  preStringTyped () {},
-  // callback for every typed string
-  onStringTyped () {},
-  // callback for reset
-  resetCallback () {}
+
+  typeSpeed: 0, // typing speed
+  startDelay: 0, // time before typing starts
+
+  backSpeed: 0, // backspacing speed
+  backDelay: 500, // time before backspacing
+
+  shuffle: false, // shuffle the strings
+
+  loop: false, // loop
+  loopCount: 1, // false = infinite
+
+  showCursor: true, // show cursor
+  cursorChar: '|', // character for cursor
+
+  attr: null, // attribute to type (null == text)
+  contentType: 'html', // either html or text
+
+  onDone () {}, // call when done callback function
+  onBeforeStringTyped () {}, // starting callback function before each string
+  onAfterStringTyped () {}, // callback for every typed string
+  onReset () {} // callback for reset
 }
 
 @autobind
@@ -47,182 +39,55 @@ class Typed {
 
     // attribute to type into
     this.isInput = matches(this.el, 'input')
-    this.attr = this.options.attr
-
-    // show cursor
-    this.showCursor = !this.isInput && this.options.showCursor
 
     // text content of element
-    this.elContent = this.attr ? this.el.getAttribute(this.attr) : this.el.textContent
-
-    // html or plain text
-    this.contentType = this.options.contentType
-
-    // typing speed
-    this.typeSpeed = this.options.typeSpeed
-
-    // add a delay before typing starts
-    this.startDelay = this.options.startDelay
-
-    // backspacing speed
-    this.backSpeed = this.options.backSpeed
-
-    // amount of time to wait before backspacing
-    this.backDelay = this.options.backDelay
-
-    // div containing strings
-    this.stringsElement = this.options.stringsElement
-
-    // input strings of text
-    this.strings = this.options.strings
+    this.elContent = this.options.attr ? this.el.getAttribute(this.options.attr) : this.el.textContent
 
     // character number position of current string
     this.strPos = 0
 
-    // current array position
-    this.arrayPos = 0
+    // current string index in array
+    this.currentString = 0
 
     // number to stop backspacing on.
-    // default 0, can change depending on how many chars
-    // you want to remove at the time
+    // default 0, can change depending on how many chars you want to remove at a time
     this.stopNum = 0
 
-    // Looping logic
-    this.loop = this.options.loop
-    this.loopCount = this.options.loopCount
+    // Looping count
     this.curLoop = 0
 
     // for stopping
     this.stop = false
 
-    // custom cursor
-    this.cursorChar = this.options.cursorChar
-
-    // shuffle the strings
-    this.shuffle = this.options.shuffle
-    // the order of strings
-    this.sequence = []
-
-    // All systems go!
-    this.build()
-  }
-
-  init () {
-    // begin the loop w/ first current string (global self.strings)
-    // current string will be passed as an argument each time after this
-    this.timeout = setTimeout(this.start, this.startDelay)
-  }
-
-  start () {
-    for (var i = 0; i < this.strings.length; ++i) this.sequence[i] = i
-
-    // shuffle the array if true
-    if (this.shuffle) this.sequence = shuffle(this.sequence)
-
-    // Start typing
-    this.typewrite(this.strings[this.sequence[this.arrayPos]], this.strPos)
-  }
-
-  build () {
     // Insert cursor
-    if (this.showCursor === true) {
-      this.el.insertAdjacentHTML('afterend', `<span class="typed-cursor">${this.cursorChar}</span>`)
+    if (!this.isInput && this.options.showCursor) {
+      this.el.insertAdjacentHTML('afterend', `<span class="typed-cursor">${this.options.cursorChar}</span>`)
     }
-    if (this.stringsElement) {
-      this.strings = []
-      this.stringsElement.style.display = 'none'
-      var strings = this.stringsElement.querySelectorAll('p')
+
+    if (this.options.stringsElement) {
+      this.options.stringsElement.style.display = 'none'
+      const strings = this.options.stringsElement.querySelectorAll('p')
       this.strings = Array.from(strings).map((string) => string.textContent)
+    } else {
+      this.strings = this.options.strings
     }
+
     this.init()
   }
 
-  setString (nextString) {
-    if (this.attr) {
-      this.el.setAttribute(this.attr, nextString)
-    } else if (this.isInput) {
-      this.el.value = nextString
-    } else if (this.contentType === 'html') {
-      this.el.innerHTML = nextString
-    } else {
-      this.el.textContent = nextString
-    }
+  init () {
+    this.timeout = setTimeout(this.start, this.options.startDelay)
   }
 
-  _type (curString, curStrPos) {
-    // check for an escape character before a pause value
-    // format: \^\d+ .. eg: ^1000 .. should be able to print the ^ too using ^^
-    // single ^ are removed from string
-    var charPause = 0
-    var substr = curString.substr(curStrPos)
-    if (substr.charAt(0) === '^') {
-      var skip = 1 // skip atleast 1
-      if (/^\^\d+/.test(substr)) {
-        substr = /\d+/.exec(substr)[0]
-        skip += substr.length
-        charPause = parseInt(substr)
-      }
+  start () {
+    if (this.options.shuffle) this.strings = shuffle(this.strings)
 
-      // strip out the escape character and pause value so they're not printed
-      curString = curString.substring(0, curStrPos) + curString.substring(curStrPos + skip)
-    }
-
-    if (this.contentType === 'html') {
-      // skip over html tags while typing
-      var curChar = curString.substr(curStrPos).charAt(0)
-      if (curChar === '<' || curChar === '&') {
-        var tag = ''
-        var endTag = curChar === '<' ? '>' : ';'
-        while (curString.substr(curStrPos).charAt(0) !== endTag) {
-          tag += curString.substr(curStrPos).charAt(0)
-          curStrPos++
-        }
-        curStrPos++
-        tag += endTag
-      }
-    }
-
-    // timeout for any pause after a character
-    this.timeout = setTimeout(this._afterType, charPause, curString, curStrPos)
+    // Start typing
+    this.typewrite(this.strings[this.currentString])
   }
 
-  _afterType (curString, curStrPos) {
-    if (curStrPos === curString.length) {
-      // fires callback function
-      this.options.onStringTyped(this.arrayPos)
-
-      // is this the final string
-      if (this.arrayPos === this.strings.length - 1) {
-        // animation that occurs on the last typed string
-        this.options.callback()
-
-        this.curLoop++
-
-        // quit if we wont loop back
-        if (this.loop === false || this.curLoop === this.loopCount) {
-          return
-        }
-      }
-
-      this.timeout = setTimeout(this.backspace, this.backDelay, curString, curStrPos)
-    } else {
-      /* call before functions if applicable */
-      if (curStrPos === 0) {
-        this.options.preStringTyped(this.arrayPos)
-      }
-
-      // start typing each new char into existing string
-      // curString: arg, self.el.html: original text inside element
-      var nextString = curString.substr(0, curStrPos + 1)
-      this.setString(nextString)
-
-      // loop the function
-      this.typewrite(curString, curStrPos + 1)
-    }
-  }
-
-	// pass current string state to each function, types 1 char per call
-  typewrite (curString, curStrPos) {
+  // pass current string state to each function, types 1 char per call
+  typewrite (curString) {
 		// exit when stopped
     if (this.stop === true) {
       return
@@ -230,69 +95,139 @@ class Typed {
 
 		// varying values for setTimeout during typing
 		// can't be global since number changes each time loop is executed
-    var humanize = Math.round(Math.random() * (100 - 30)) + this.typeSpeed
+    const humanize = Math.round(Math.random() * (100 - 30)) + this.options.typeSpeed
 
 		// contain typing function in a timeout humanize'd delay
-    this.timeout = setTimeout(this._type, humanize, curString, curStrPos)
+    this.timeout = setTimeout(this._type, humanize, curString)
   }
 
-  _typeBack (curString, curStrPos) {
-    // ----- this part is optional ----- //
-    // check string array position
-    // on the first string, only delete one word
-    // the stopNum actually represents the amount of chars to
-    // keep in the current string. In my case it's 14.
-    // if (self.arrayPos == 1){
-    //  self.stopNum = 14;
-    // }
-    // every other time, delete the whole typed string
-    // else{
-    //  self.stopNum = 0;
-    // }
+  _type (curString) {
+    // check for an escape character before a pause value
+    // format: \^\d+ .. eg: ^1000 .. should be able to print the ^ too using ^^
+    // single ^ are removed from string
+    let charPause = 0
+    let substr = curString.substr(this.strPos)
+    if (substr.charAt(0) === '^') {
+      let skip = 1 // skip at least 1
+      if (/^\^\d+/.test(substr)) {
+        substr = /\d+/.exec(substr)[0]
+        skip += substr.length
+        charPause = parseInt(substr)
+      }
 
-    if (this.contentType === 'html') {
-      // skip over html tags while backspacing
-      if (curString.substr(curStrPos).charAt(0) === '>') {
-        var tag = ''
-        while (curString.substr(curStrPos).charAt(0) !== '<') {
-          tag -= curString.substr(curStrPos).charAt(0)
-          curStrPos--
+      // strip out the escape character and pause value so they're not printed
+      curString = curString.substring(0, this.strPos) + curString.substring(this.strPos + skip)
+    }
+
+    if (this.options.contentType === 'html') {
+      // skip over html tags while typing
+      const curChar = curString.substr(this.strPos).charAt(0)
+      if (curChar === '<' || curChar === '&') {
+        let tag = ''
+        const endTag = curChar === '<' ? '>' : ';'
+        while (curString.substr(this.strPos).charAt(0) !== endTag) {
+          tag += curString.substr(this.strPos).charAt(0)
+          this.strPos++
         }
-        curStrPos--
+        this.strPos++
+        tag += endTag
+      }
+    }
+
+    // timeout for any pause after a character
+    this.timeout = setTimeout(this._afterType, charPause, curString)
+  }
+
+  _afterType (curString) {
+    if (this.strPos === curString.length) {
+      // fires callback function
+      this.options.onAfterStringTyped(this.currentString)
+
+      // is this the final string
+      if (this.currentString === this.options.strings.length - 1) {
+        // animation that occurs on the last typed string
+        this.options.onDone()
+
+        this.curLoop++
+
+        // quit if we wont loop back
+        if (!this.options.loop || this.curLoop >= this.options.loopCount) {
+          return
+        }
+      }
+
+      this.timeout = setTimeout(this.backspace, this.options.backDelay, curString)
+    } else {
+      /* call before functions if applicable */
+      if (this.strPos === 0) {
+        this.options.onBeforeStringTyped(this.currentString)
+      }
+
+      // start typing each new char into existing string
+      // curString: arg, self.el.html: original text inside element
+      const nextString = curString.substr(0, this.strPos + 1)
+      this._setString(nextString)
+
+      // loop the function
+      this.typewrite(curString, ++this.strPos)
+    }
+  }
+
+  _setString (nextString) {
+    if (this.options.attr) {
+      this.el.setAttribute(this.options.attr, nextString)
+    } else if (this.isInput) {
+      this.el.value = nextString
+    } else if (this.options.contentType === 'html') {
+      this.el.innerHTML = nextString
+    } else {
+      this.el.textContent = nextString
+    }
+  }
+
+  _typeBack (curString) {
+    if (this.options.contentType === 'html') {
+      // skip over html tags while backspacing
+      if (curString.substr(this.strPos).charAt(0) === '>') {
+        var tag = ''
+        while (curString.substr(this.strPos).charAt(0) !== '<') {
+          tag -= curString.substr(this.strPos).charAt(0)
+          this.strPos--
+        }
+        this.strPos--
         tag += '<'
       }
     }
 
-    // ----- continue important stuff ----- //
     // replace text with base text + typed characters
-    var nextString = curString.substr(0, curStrPos)
-    this.setString(nextString)
+    const nextString = curString.substr(0, this.strPos)
+    this._setString(nextString)
 
     // if the number (id of character in current string) is
     // less than the stop number, keep going
-    if (curStrPos > this.stopNum) {
+    if (this.strPos > this.stopNum) {
       // loop the function
-      this.backspace(curString, curStrPos - 1)
-    } else if (curStrPos <= this.stopNum) {
+      this.backspace(curString, --this.strPos)
+    } else if (this.strPos <= this.stopNum) {
       // if the stop number has been reached, increase
       // array position to next string
-      this.arrayPos++
+      this.currentString++
 
-      if (this.arrayPos === this.strings.length) {
-        this.arrayPos = 0
+      if (this.currentString === this.options.strings.length) {
+        this.currentString = 0
 
         // Shuffle sequence again
-        if (this.shuffle) this.sequence = shuffle(this.sequence)
+        if (this.options.shuffle) this.strings = shuffle(this.strings)
 
         this.init()
       } else {
-        this.typewrite(this.strings[this.sequence[this.arrayPos]], curStrPos)
+        this.typewrite(this.strings[this.currentString], this.strPos)
       }
     }
     // humanized value for typing
   }
 
-  backspace (curString, curStrPos) {
+  backspace (curString) {
     // exit when stopped
     if (this.stop === true) {
       return
@@ -300,41 +235,22 @@ class Typed {
 
     // varying values for setTimeout during typing
     // can't be global since number changes each time loop is executed
-    var humanize = Math.round(Math.random() * (100 - 30)) + this.backSpeed
+    const humanize = Math.round(Math.random() * (100 - 30)) + this.options.backSpeed
 
-    this.timeout = setTimeout(this._typeBack, humanize, curString, curStrPos)
+    this.timeout = setTimeout(this._typeBack, humanize, curString)
   }
 
-	// Start & Stop currently not working
-
-	// , stop: function() {
-	//     var self = this;
-
-	//     self.stop = true;
-	//     clearInterval(self.timeout);
-	// }
-
-	// , start: function() {
-	//     var self = this;
-	//     if(self.stop === false)
-	//        return;
-
-	//     this.stop = false;
-	//     this.init();
-	// }
-
 	// Reset and rebuild the element
-  @autobind
   reset () {
     clearInterval(this.timeout)
-    var id = this.el.getAttribute('id')
+    const id = this.el.getAttribute('id')
     this.el.insertAdjacentHTML('afterend', `<span id="${id}"></span>`)
     this.el.parentNode.removeChild(this.el)
     if (typeof this.cursor !== 'undefined') {
       this.cursor.parentNode.removeChild(this.cursor)
     }
 		// Send the callback
-    this.options.resetCallback()
+    this.options.onReset()
   }
 }
 

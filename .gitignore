@@ -17,3 +17,7 @@ npm-debug.log*
 
 # Optional Env variables
 .env
+
+example/build
+example/app.bundle.js
+example/app.bundle.js.map
